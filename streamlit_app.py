@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import requests
+import google.generativeai as genai
 from datetime import datetime, timedelta
 
 # --- 1. PREMIUM MOBILOPTIMERAD DESIGN ---
@@ -21,7 +21,7 @@ st.markdown("""
 st.markdown('<div class="main-title">⚡ XmarketAi: Ultimate Master Dashboard</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">AI, Space, Energy, Semiconductors, Data Centers & Crypto</div>', unsafe_allow_html=True)
 
-# --- 2. DIN GEMINI-NYCKEL (MED CITATIONSTECKEN) ---
+# --- 2. DIN GEMINI-NYCKEL (KLAR PÅ RAD 28) ---
 SPARAD_GEMINI_KEY = "AIzaSyDy6tOqejFsyLUR6SjgfWoXfyNPGNYeM50"
 
 # --- 3. SYSTEMINSTÄLLNINGAR I SIDOMENYN ---
@@ -46,7 +46,7 @@ st.sidebar.header("📊 Tekniska Indikatorer")
 visa_sma = st.sidebar.checkbox("Glidande Medelvärde (SMA 20)", value=True)
 visa_rsi = st.sidebar.checkbox("Visa RSI (Momentum-bevakning)", value=True)
 
-# --- 4. DET KOMPLETTA BOLAGSREGISTRET ---
+# --- 4. DET KOMPLETTA BOLAGSREGISTRET (JUSTERAD TESLA) ---
 tillgangar = {
     "Bitcoin (BTC)": {"aktuellt_pris": 76791.00, "kat": "Crypto", "kod": "BTC"},
     "Ethereum (ETH)": {"aktuellt_pris": 2120.53, "kat": "Crypto", "kod": "ETH"},
@@ -136,21 +136,20 @@ else:
         with flik_ai:
             if st.button(f"Kör intelligent {valda_ai}-analys för {info['kod']}", key=f"ai_{info['kod']}"):
                 with st.spinner(f"Ansluter till {valda_ai} AI-motor..."):
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-                    headers = {'Content-Type': 'application/json'}
-                    payload = {
-                        "contents": [{
-                            "parts": [{
-                                "text": f"Gör en superkort marknadsanalys på svenska av {namn} ({info['kod']}). Priset är {senaste_pris} USD och RSI är {nuvarande_rsi}. Ge en köp/sälj-tendens."
-                            }]
-                        }]
-                    }
                     try:
-                        res = requests.post(url, headers=headers, json=payload)
-                        output = res.json()['candidates'][0]['content']['parts'][0]['text']
-                        st.info(output)
+                        # ANVÄNDER DEN OFFICIELLA GOOGLE-INTEGRATIONEN FÖR MAIDENHANDEL I STREAMLIT
+                        genai.configure(api_key=api_key)
+                        model = genai.GenerativeModel('gemini-1.5-flash')
+                        
+                        prompt = (f"Gör en kort marknadsanalys på svenska av {namn} ({info['kod']}) "
+                                  f"baserat på att priset står i {senaste_pris} USD och RSI är {nuvarande_rsi}. "
+                                  f"Ge en tydlig köp/sälj/avvakta-tendens och förklara varför kortfattat.")
+                                  
+                        response = model.generate_content(prompt)
+                        st.info(response.text)
                     except Exception as e:
-                        st.error(f"Ett fel uppstod: {str(e)}")
+                        st.error(f"Kopplingen misslyckades: {str(e)}")
+                        st.warning("Tips: Kontrollera att din nyckel inte har begränsningar i Google AI Studio.")
                         
         with flik_nyheter:
             st.markdown(f"**🔥 Senaste rubrikerna för {info['kod']}:**")
