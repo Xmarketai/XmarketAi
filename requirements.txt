@@ -1,2 +1,5 @@
 streamlit
 yfinance
+google-generativeai
+anthropic
+openai
