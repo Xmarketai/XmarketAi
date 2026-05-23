@@ -13,7 +13,7 @@ api_key = st.sidebar.text_input(f"{valda_ai} API-nyckel", type="password", help=
 
 st.sidebar.markdown("---")
 
-# Tidsväljare för graferna med 15 och 20 år tillagda!
+# Tidsväljare för graferna med 15 och 20 år!
 st.sidebar.header("📅 Grafinställningar")
 tidsperiod = st.sidebar.selectbox(
     "Välj historik för grafen:",
@@ -33,28 +33,22 @@ st.sidebar.markdown("---")
 
 # --- REGISTER ÖVER ALLA TILLGÅNGAR ---
 tillgangliga_tillgangar = {
-    # Krypto
     "Bitcoin (BTC)": "BTC-USD",
     "Ethereum (ETH)": "ETH-USD",
     "Solana (SOL)": "SOL-USD",
-    # AI & AGI
     "Microsoft (MSFT)": "MSFT",
     "Alphabet / Google (GOOGL)": "GOOGL",
     "Meta Platforms (META)": "META",
     "Palantir (PLTR)": "PLTR",
-    # Semiconductor / Halvledare
     "NVIDIA (NVDA)": "NVDA",
     "AMD (AMD)": "AMD",
     "Broadcom (AVGO)": "AVGO",
     "TSMC (TSM)": "TSM",
-    # Data Center & Infrastruktur
     "Super Micro Computer (SMCI)": "SMCI",
     "Vertiv Holdings (VRT)": "VRT",
     "Arista Networks (ANET)": "ANET",
-    # Space / Rymden
     "Rocket Lab (RKLB)": "RKLB",
     "Intuitive Machines (LUNR)": "LUNR",
-    # Energy / Energi & Kärnkraft
     "Vistra Corp (VST)": "VST",
     "Bloom Energy (BE)": "BE",
     "Constellation Energy (CEG)": "CEG",
@@ -78,12 +72,13 @@ for ticker in mina_val:
     
     col1, col2 = st.columns([2, 1])
     
+    # Skapa ticker-objektet direkt i loopen
+    current_ticker = yf.Ticker(ticker)
+    
     with col1:
         try:
-            t = yf.Ticker(ticker)
-            historik = t.history(period=tidsperiod)
-            
-            info = t.info
+            historik = current_ticker.history(period=tidsperiod)
+            info = current_ticker.info
             pris = info.get("currentPrice", info.get("regularMarketPrice", "N/A"))
             valuta = "USD" if "-USD" in ticker else info.get("currency", "USD")
             
@@ -97,13 +92,14 @@ for ticker in mina_val:
                 st.line_chart(historik['Close'])
                 
         except Exception as e:
-            st.error(f"Kunde inte hämta data för {ticker}")
+            st.error(f"Kunde inte hämta marknadsdata för {ticker}")
             
     with col2:
         st.subheader("📰 Senaste Nyheter & AI")
         
+        # FIXAT: Hämtar nyheterna korrekt för varje unikt bolag
         try:
-            nyheter = t.news[:3]
+            nyheter = current_ticker.news[:3]
             if nyheter:
                 for nyhet in nyheter:
                     st.markdown(f"**[{nyhet['title']}]({nyhet['link']})**")
@@ -120,6 +116,7 @@ for ticker in mina_val:
             if not api_key:
                 st.warning(f"Klistra in din {valda_ai} API-nyckel i sidomenyn till vänster för att köra live-analys!")
             else:
-                st.info(f"Ansluter till {valda_ai} för att analysera marknadsdata, nyheter och historiska trender...")
+                st.info(f"Ansluter till {valda_ai} för att köra en djupanalys...")
+                # Här kommer AI:ns svar att visas när nyckeln skrivs in
                 
     st.markdown("---")
