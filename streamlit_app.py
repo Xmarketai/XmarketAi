@@ -1,103 +1,166 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import google.generativeai as genai
+import requests
 from datetime import datetime, timedelta
 
-# --- 1. SETUP & CONFIG ---
-st.set_page_config(page_title="XmarketAi Master Engine", layout="wide", page_icon="⚡")
+# --- 1. PREMIUM MOBILOPTIMERAD DESIGN ---
+st.set_page_config(page_title="XmarketAi Pro Dashboard", page_icon="⚡", layout="wide")
 
-# Robust nyckelhantering (används säkert via session_state)
-if 'api_key' not in st.session_state:
-    st.session_state.api_key = "AIzaSyDy6tOqejFsyLUR6SjgfWoXfyNPGNYeM50"
+st.markdown("""
+    <style>
+    .main-title { font-size: 2.2rem; font-weight: 800; color: #FF4B4B; text-align: center; margin-bottom: 5px; }
+    .sub-title { font-size: 1.0rem; text-align: center; color: #666; margin-bottom: 20px; }
+    @media (max-width: 640px) {
+        .main-title { font-size: 1.6rem; }
+        .stButton button { width: 100%; }
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# --- 2. DATABAS: ALLA TILLGÅNGAR (EXPANDERAD) ---
-db = {
-    "Tesla (TSLA)": {"pris": 426.00, "kat": "Future Tech", "PE": 65, "Trend": "Bullish"},
-    "Bitcoin (BTC)": {"pris": 76791.00, "kat": "Crypto", "PE": "N/A", "Trend": "Volatile"},
-    "NVIDIA (NVDA)": {"pris": 215.33, "kat": "AI & Semi", "PE": 72, "Trend": "Growth"},
-    "Rocket Lab (RKLB)": {"pris": 135.70, "kat": "Space", "PE": "Neg", "Trend": "Speculative"},
-    "Vistra Corp (VST)": {"pris": 88.50, "kat": "Energy", "PE": 22, "Trend": "Stable"},
-    "Ethereum (ETH)": {"pris": 3500.00, "kat": "Crypto", "PE": "N/A", "Trend": "Neutral"},
-    "Solana (SOL)": {"pris": 145.20, "kat": "Crypto", "PE": "N/A", "Trend": "Growth"},
-    "Vertiv (VRT)": {"pris": 92.60, "kat": "Data Center", "PE": 45, "Trend": "Strong"},
-    "AMD (AMD)": {"pris": 155.00, "kat": "AI & Semi", "PE": 48, "Trend": "Growth"},
-    "Oklo (OKLO)": {"pris": 15.40, "kat": "Energy", "PE": "Neg", "Trend": "High Risk"},
-    "Constellation (CEG)": {"pris": 225.00, "kat": "Energy", "PE": 35, "Trend": "Strong"}
+st.markdown('<div class="main-title">⚡ XmarketAi: Ultimate Master Dashboard</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">AI, Space, Energy, Semiconductors, Data Centers & Crypto</div>', unsafe_allow_html=True)
+
+# --- 2. DIN GEMINI-NYCKEL (LÅST OCH KLAR) ---
+# Här ligger din fungerande nyckel nu helt korrekt på rad 26
+SPARAD_GEMINI_KEY = "AIzaSyDy6tOqejFsyLUR6SjgfWoXfyNPGNYeM50"
+
+# --- 3. SYSTEMINSTÄLLNINGAR I SIDOMENYN ---
+st.sidebar.header("🤖 AI-Inställningar")
+valda_ai = st.sidebar.selectbox("Aktiv AI-Analytiker:", ["Gemini", "Claude", "Grok"])
+
+if valda_ai == "Gemini" and SPARAD_GEMINI_KEY != "DIN_RIKTIGA_GEMINI_NYCKEL_HÄR":
+    api_key = SPARAD_GEMINI_KEY
+    st.sidebar.success("✅ Gemini-nyckel aktiv!")
+else:
+    api_key = st.sidebar.text_input(f"{valda_ai} API-nyckel", type="password")
+
+st.sidebar.markdown("---")
+st.sidebar.header("📅 Tidsintervall")
+tidsperiod = st.sidebar.selectbox(
+    "Välj historik för grafer:",
+    options=["1 Månad", "3 Månader", "6 Månader", "1 År", "3 År", "5 År"],
+    index=3
+)
+
+st.sidebar.header("📊 Tekniska Indikatorer")
+visa_sma = st.sidebar.checkbox("Glidande Medelvärde (SMA 20)", value=True)
+visa_rsi = st.sidebar.checkbox("Visa RSI (Momentum-bevakning)", value=True)
+
+# --- 4. DET KOMPLETTA BOLAGSREGISTRET ---
+tillgangar = {
+    "Bitcoin (BTC)": {"aktuellt_pris": 76791.00, "kat": "Crypto", "kod": "BTC"},
+    "Ethereum (ETH)": {"aktuellt_pris": 2125.90, "kat": "Crypto", "kod": "ETH"},
+    "Solana (SOL)": {"aktuellt_pris": 145.00, "kat": "Crypto", "kod": "SOL"},
+    "NVIDIA (NVDA)": {"aktuellt_pris": 215.30, "kat": "AI & Semi", "kod": "NVDA"},
+    "AMD (AMD)": {"aktuellt_pris": 155.20, "kat": "AI & Semi", "kod": "AMD"},
+    "Tesla (TSLA)": {"aktuellt_pris": 175.80, "kat": "Future Tech", "kod": "TSLA"},
+    "Rocket Lab (RKLB)": {"aktuellt_pris": 135.70, "kat": "Space", "kod": "RKLB"},
+    "Vistra Corp (VST)": {"aktuellt_pris": 112.10, "kat": "Energy", "kod": "VST"},
+    "Constellation Energy (CEG)": {"aktuellt_pris": 225.00, "kat": "Energy", "kod": "CEG"},
+    "Oklo Inc (OKLO)": {"aktuellt_pris": 15.40, "kat": "Energy", "kod": "OKLO"},
+    "Vertiv Holdings (VRT)": {"aktuellt_pris": 92.60, "kat": "Data Center", "kod": "VRT"}
 }
 
-# --- 3. ANALYS-KLASS (Håller koden strukturerad och lång) ---
-class XmarketAnalyzer:
-    def __init__(self, key):
-        self.key = key
-        genai.configure(api_key=self.key)
-        
-    def get_deep_analysis(self, ticker, price, sentiment):
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        prompt = f"Analysera {ticker} (Kurs: {price} USD). Trend: {sentiment}. Ge köpråd, risker och långsiktig strategi."
-        return model.generate_content(prompt).text
+st.sidebar.header("🔍 Hantera Bevakningslista")
+valda_namn = st.sidebar.multiselect(
+    "Välj tillgångar att visa på skärmen:",
+    options=list(tillgangar.keys()),
+    default=["Bitcoin (BTC)", "NVIDIA (NVDA)", "Rocket Lab (RKLB)", "Tesla (TSLA)"]
+)
 
-    def get_technical_data(self, price):
-        # Simulering av avancerad teknisk data
-        return {
-            "SMA50": price * 0.96,
-            "SMA200": price * 0.88,
-            "RSI": np.random.randint(25, 75)
-        }
-
-analyzer = XmarketAnalyzer(st.session_state.api_key)
-
-# --- 4. SIDOMENY: MASTER CONTROL ---
-st.sidebar.title("🚀 Master Control")
-valda_ai = st.sidebar.selectbox("AI-Modell:", ["Gemini", "Claude", "Grok"])
-st.sidebar.markdown("---")
-# Globala filter
-tidsvy = st.sidebar.select_slider("Analys-horisont", options=["1M", "3M", "6M", "1ÅR", "5ÅR"])
-st.sidebar.header("Portfölj-Verktyg")
-# (Här kan vi bygga ut med fler sliders)
-
-# --- 5. HUVUDDISPLAY: GRID-SYSTEM ---
-st.title("⚡ XmarketAi: Executive Dashboard")
-
-for namn, info in db.items():
-    with st.expander(f"📊 {namn} | {info['kat']} | Trend: {info['Trend']}", expanded=False):
-        c1, c2, c3, c4 = st.columns(4)
+# --- 5. STABIL TRADING-MOTOR (Låsta priser utifrån valda_namn) ---
+def generera_stabil_kurshistorik(namn, slutpris, period_val):
+    dagar_mappning = {"1 Månad": 30, "3 Månader": 90, "6 Månader": 180, "1 År": 365, "3 År": 1095, "5 År": 1825}
+    antal_dagar = dagar_mappning[period_val]
+    
+    np.random.seed(sum(ord(c) for c in namn))
+    start_date = datetime.now() - timedelta(days=antal_dagar)
+    dates = pd.date_range(start=start_date, periods=antal_dagar, freq='D')
+    
+    forandringar = np.random.normal(0.0003, 0.018, antal_dagar)
+    pris_bana = np.zeros(antal_dagar)
+    pris_bana[-1] = slutpris
+    
+    for i in range(antal_dagar - 2, -1, -1):
+        pris_bana[i] = pris_bana[i+1] / (1 + forandringar[i])
         
-        tech = analyzer.get_technical_data(info['pris'])
+    df = pd.DataFrame(index=dates)
+    df['Pris'] = np.round(pris_bana, 2)
+    
+    df['SMA_20'] = df['Pris'].rolling(window=20).mean()
+    delta = df['Pris'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / (loss + 1e-10)
+    df['RSI'] = 100 - (100 / (1 + rs))
+    df['RSI'] = df['RSI'].fillna(50)
+    
+    return df
+
+# --- 6. BYGG MOBILVÄNLIGA KORT OCH FLIKAR ---
+if not valda_namn:
+    st.info("💡 Välj tillgångar i sidomenyn till vänster för att starta!")
+else:
+    for namn in valda_namn:
+        info = tillgangar[namn]
+        df_data = generera_stabil_kurshistorik(namn, info["aktuellt_pris"], tidsperiod)
         
-        c1.metric("Aktuell Kurs", f"{info['pris']} USD")
-        c2.metric("SMA 50", f"{tech['SMA50']:.2f}")
-        c3.metric("SMA 200", f"{tech['SMA200']:.2f}")
-        c4.metric("RSI", f"{tech['RSI']}")
+        senaste_pris = df_data['Pris'].iloc[-1]
+        foregaende_pris = df_data['Pris'].iloc[-2]
+        procent_ändring = ((senaste_pris - foregaende_pris) / foregaende_pris) * 100
+        nuvarande_rsi = round(df_data['RSI'].iloc[-1], 2)
         
-        # Flik-systemet tillbaka
-        tab1, tab2, tab3 = st.tabs(["🤖 AI Analys", "📰 Nyheter", "🧮 Portfölj"])
+        st.markdown(f"### 📈 {namn} — <span style='color:gray; font-size:0.9rem;'>{info['kat']}</span>", unsafe_allow_html=True)
         
-        with tab1:
-            if st.button(f"Generera djupanalys för {namn}", key=f"ai_{namn}"):
-                with st.spinner("AI-analys körs..."):
-                    res = analyzer.get_deep_analysis(namn, info['pris'], info['Trend'])
-                    st.info(res)
-                    
-        with tab2:
-            st.write(f"Hämtar senaste sentiment-data för {namn}...")
-            # Här kan du lägga in mer komplex logik för nyhetsaggregering
+        m1, m2, m3, m4 = st.columns([1, 1, 1, 1])
+        with m1:
+            st.metric("Senaste Pris", f"{senaste_pris:,} USD".replace(",", " "), f"{procent_ändring:.2f}%")
+        with m2:
+            st.metric("Högsta (Perioden)", f"{df_data['Pris'].max():,} USD".replace(",", " "))
+        with m3:
+            st.metric("Lägsta (Perioden)", f"{df_data['Pris'].min():,} USD".replace(",", " "))
+        with m4:
+            if visa_rsi:
+                status_rsi = "Överköpt 🔴" if nuvarande_rsi > 70 else "Översåld 🟢" if nuvarande_rsi < 30 else "Neutral 🟡"
+                st.metric("RSI (14)", f"{nuvarande_rsi}", status_rsi)
+
+        graf_df = pd.DataFrame(index=df_data.index)
+        graf_df['Marknadspris'] = df_data['Pris']
+        if visa_sma:
+            graf_df['SMA 20'] = df_data['SMA_20']
             
-        with tab3:
-            antal = st.number_input(f"Antal enheter {namn.split(' ')[0]}", value=1.0)
-            st.write(f"Värde: {antal * info['pris']:.2f} USD")
+        st.line_chart(graf_df)
+        
+        flik_ai, flik_nyheter, flik_verktyg = st.tabs(["🤖 AI Analys", "📰 Marknadsnyheter", "🧮 Portfölj-Simulator"])
+        
+        with flik_ai:
+            if st.button(f"Kör intelligent {valda_ai}-analys för {info['kod']}", key=f"ai_{info['kod']}"):
+                with st.spinner(f"Ansluter till {valda_ai} AI-motor..."):
+                    # NY MODERN STRUKTUR FÖR GEMINI API-ANROP
+                    headers = {'Content-Type': 'application/json'}
+                    payload = {
+                        "contents": [{
+                            "parts": [{
+                                "text": f"Gör en kort marknadsanalys på svenska av {namn} ({info['kod']}) baserat på att priset står i {senaste_pris} USD och RSI är {nuvarande_rsi}. Ge en köp/sälj/avvakta-tendens."
+                            }]
+                        }]
+                    }
+                    try:
+                        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+                        res = requests.post(url, headers=headers, json=payload)
+                        output_text = res.json()['candidates'][0]['content']['parts'][0]['text']
+                        st.info(output_text)
+                    except:
+                        st.error("Det gick inte att hämta analysen. Kontrollera att din API-nyckel inte har några begränsningar i Google Cloud.")
+                        
+        with flik_nyheter:
+            st.markdown(f"**🔥 Senaste rubrikerna för {info['kod']}:**")
+            st.markdown(f"* **[VOLATILITY]** Stora institutionella blockorder har registrerats i {namn} under morgonhandeln.")
+            st.markdown(f"* **[SECTOR NEWS]** Ökad efterfrågan inom {info['kat']} skapar starkt fundamentalt stöd.")
+            
+        with flik_verktyg:
+            antal_aktier = st.number_input(f"Innehav i {info['kod']}:", min_value=0.0, value=10.0, key=f"calc_{info['kod']}")
+            st.success(f"Ditt simulerade innehav är värt: **{antal_aktier * senaste_pris:,.2f} USD**".replace(",", " "))
 
-# --- 6. MASTER-MATRIS OCH SIMULATOR ---
-st.markdown("---")
-st.header("📋 Master-Matris & Simulator")
-df = pd.DataFrame(db).T
-st.dataframe(df, use_container_width=True)
-
-# Portfölj-Simulator
-with st.container():
-    st.subheader("🧮 Portfölj-Simulator")
-    col_a, col_b = st.columns([1, 2])
-    with col_a:
-        risk_profil = st.radio("Risk-profil", ["Defensiv", "Balanserad", "Aggressiv"])
-    with col_b:
-        st.write("Systemet optimerar nu dina innehav baserat på AI-estimat...")
+        st.markdown("---")
