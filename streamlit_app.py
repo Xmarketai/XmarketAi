@@ -14,6 +14,16 @@ GROK_KEY = st.sidebar.text_input("Grok API-nyckel", type="password")
 
 st.sidebar.markdown("---")
 
+# Tidsväljare för graferna
+st.sidebar.header("📅 Grafinställningar")
+tidsperiod = st.sidebar.selectbox(
+    "Välj historik för grafen:",
+    options=["1y", "5y", "10y", "max"],
+    format_func=lambda x: "1 år" if x=="1y" else "5 år" if x=="5y" else "10 år" if x=="10y" else "Max historik"
+)
+
+st.sidebar.markdown("---")
+
 # --- REGISTER ÖVER ALLA TILLGÅNGAR ---
 tillgangliga_tillgangar = {
     # Krypto
@@ -56,26 +66,25 @@ mina_val = [tillgangliga_tillgangar[namn] for namn in valda_namn]
 
 # --- PROCESSA VARJE TILLGÅNG ---
 for ticker in mina_val:
-    # Snyggare rubriknamn (ta bort -USD för krypto i visningen)
     namn_visning = ticker.replace("-USD", "")
     st.markdown(f"## {namn_visning}")
     
     try:
         t = yf.Ticker(ticker)
-        historik = t.history(period="1y")
+        # Här används den valda tidsperioden (1y, 5y, 10y, max)
+        historik = t.history(period=tidsperiod)
         
         info = t.info
         pris = info.get("currentPrice", info.get("regularMarketPrice", "N/A"))
         valuta = "USD" if "-USD" in ticker else info.get("currency", "USD")
         
-        # Reserv om yfinance saknar direktpris för krypto
         if (pris == "N/A" or pris is None) and not historik.empty:
             pris = round(historik['Close'].iloc[-1], 2)
             
         st.metric("Senaste Pris", f"{pris} {valuta}")
         
         if not historik.empty:
-            st.write("Prisutveckling senaste året:")
+            st.write(f"Prisutveckling ({tidsperiod}):")
             st.line_chart(historik['Close'])
             
     except Exception as e:
