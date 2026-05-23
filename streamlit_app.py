@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import requests
+import google.generativeai as genai
 from datetime import datetime, timedelta
 
 # --- 1. PREMIUM MOBILOPTIMERAD DESIGN ---
@@ -21,8 +21,7 @@ st.markdown("""
 st.markdown('<div class="main-title">⚡ XmarketAi: Ultimate Master Dashboard</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">AI, Space, Energy, Semiconductors, Data Centers & Crypto</div>', unsafe_allow_html=True)
 
-# --- 2. DIN GEMINI-NYCKEL (LÅST OCH KLAR) ---
-# Här ligger din fungerande nyckel nu helt korrekt på rad 26
+# --- 2. DIN GEMINI-NYCKEL (KLAR PÅ RAD 28) ---
 SPARAD_GEMINI_KEY = "AIzaSyDy6tOqejFsyLUR6SjgfWoXfyNPGNYeM50"
 
 # --- 3. SYSTEMINSTÄLLNINGAR I SIDOMENYN ---
@@ -47,14 +46,14 @@ st.sidebar.header("📊 Tekniska Indikatorer")
 visa_sma = st.sidebar.checkbox("Glidande Medelvärde (SMA 20)", value=True)
 visa_rsi = st.sidebar.checkbox("Visa RSI (Momentum-bevakning)", value=True)
 
-# --- 4. DET KOMPLETTA BOLAGSREGISTRET ---
+# --- 4. DET KOMPLETTA BOLAGSREGISTRET (JUSTERAD TESLA) ---
 tillgangar = {
     "Bitcoin (BTC)": {"aktuellt_pris": 76791.00, "kat": "Crypto", "kod": "BTC"},
-    "Ethereum (ETH)": {"aktuellt_pris": 2125.90, "kat": "Crypto", "kod": "ETH"},
+    "Ethereum (ETH)": {"aktuellt_pris": 2120.53, "kat": "Crypto", "kod": "ETH"},
     "Solana (SOL)": {"aktuellt_pris": 145.00, "kat": "Crypto", "kod": "SOL"},
-    "NVIDIA (NVDA)": {"aktuellt_pris": 215.30, "kat": "AI & Semi", "kod": "NVDA"},
+    "NVIDIA (NVDA)": {"aktuellt_pris": 215.33, "kat": "AI & Semi", "kod": "NVDA"},
     "AMD (AMD)": {"aktuellt_pris": 155.20, "kat": "AI & Semi", "kod": "AMD"},
-    "Tesla (TSLA)": {"aktuellt_pris": 175.80, "kat": "Future Tech", "kod": "TSLA"},
+    "Tesla (TSLA)": {"aktuellt_pris": 158.68, "kat": "Future Tech", "kod": "TSLA"},
     "Rocket Lab (RKLB)": {"aktuellt_pris": 135.70, "kat": "Space", "kod": "RKLB"},
     "Vistra Corp (VST)": {"aktuellt_pris": 112.10, "kat": "Energy", "kod": "VST"},
     "Constellation Energy (CEG)": {"aktuellt_pris": 225.00, "kat": "Energy", "kod": "CEG"},
@@ -69,7 +68,7 @@ valda_namn = st.sidebar.multiselect(
     default=["Bitcoin (BTC)", "NVIDIA (NVDA)", "Rocket Lab (RKLB)", "Tesla (TSLA)"]
 )
 
-# --- 5. STABIL TRADING-MOTOR (Låsta priser utifrån valda_namn) ---
+# --- 5. STABIL TRADING-MOTOR ---
 def generera_stabil_kurshistorik(namn, slutpris, period_val):
     dagar_mappning = {"1 Månad": 30, "3 Månader": 90, "6 Månader": 180, "1 År": 365, "3 År": 1095, "5 År": 1825}
     antal_dagar = dagar_mappning[period_val]
@@ -137,22 +136,20 @@ else:
         with flik_ai:
             if st.button(f"Kör intelligent {valda_ai}-analys för {info['kod']}", key=f"ai_{info['kod']}"):
                 with st.spinner(f"Ansluter till {valda_ai} AI-motor..."):
-                    # NY MODERN STRUKTUR FÖR GEMINI API-ANROP
-                    headers = {'Content-Type': 'application/json'}
-                    payload = {
-                        "contents": [{
-                            "parts": [{
-                                "text": f"Gör en kort marknadsanalys på svenska av {namn} ({info['kod']}) baserat på att priset står i {senaste_pris} USD och RSI är {nuvarande_rsi}. Ge en köp/sälj/avvakta-tendens."
-                            }]
-                        }]
-                    }
                     try:
-                        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-                        res = requests.post(url, headers=headers, json=payload)
-                        output_text = res.json()['candidates'][0]['content']['parts'][0]['text']
-                        st.info(output_text)
-                    except:
-                        st.error("Det gick inte att hämta analysen. Kontrollera att din API-nyckel inte har några begränsningar i Google Cloud.")
+                        # ANVÄNDER DEN OFFICIELLA GOOGLE-INTEGRATIONEN FÖR MAIDENHANDEL I STREAMLIT
+                        genai.configure(api_key=api_key)
+                        model = genai.GenerativeModel('gemini-1.5-flash')
+                        
+                        prompt = (f"Gör en kort marknadsanalys på svenska av {namn} ({info['kod']}) "
+                                  f"baserat på att priset står i {senaste_pris} USD och RSI är {nuvarande_rsi}. "
+                                  f"Ge en tydlig köp/sälj/avvakta-tendens och förklara varför kortfattat.")
+                                  
+                        response = model.generate_content(prompt)
+                        st.info(response.text)
+                    except Exception as e:
+                        st.error(f"Kopplingen misslyckades: {str(e)}")
+                        st.warning("Tips: Kontrollera att din nyckel inte har begränsningar i Google AI Studio.")
                         
         with flik_nyheter:
             st.markdown(f"**🔥 Senaste rubrikerna för {info['kod']}:**")
