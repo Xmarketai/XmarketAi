@@ -1,8 +1,7 @@
 import streamlit as st
 import yfinance as yf
-import google.generativeai as genai
-import anthropic
-import openai
+import requests
+import json
 
 # --- APP-KONFIGURATION ---
 st.set_page_config(page_title="XmarketAi Master Dashboard", page_icon="📈", layout="wide")
@@ -71,7 +70,6 @@ for ticker in mina_val:
     with col2:
         st.subheader("📰 Senaste Nyheter & AI Insights")
         
-        # Nyhetsinsamling via RSS
         try:
             nyheter = current_ticker.news[:3]
             if nyheter:
@@ -79,9 +77,9 @@ for ticker in mina_val:
                     st.markdown(f"**[{nyhet['title']}]({nyhet['link']})**")
                     st.caption(f"Källa: {nyhet['publisher']}")
             else:
-                st.write("Söker efter globala nyhetsflöden...")
+                st.write("Inga färska nyheter hittades på Yahoo just nu.")
         except:
-            st.write("Nyhetsflöde tillfälligt blockerat av Yahoo. AI-analysen kan fortfarande köras!")
+            st.write("Nyhetsflöde tillfälligt ej tillgängligt.")
             
         st.markdown("---")
         st.write(f"🤖 **{valda_ai}-Analyslaboratorium**")
@@ -91,32 +89,45 @@ for ticker in mina_val:
                 st.warning(f"Klistra in din {valda_ai} API-nyckel till vänster!")
             else:
                 with st.spinner(f"Ansluter till {valda_ai} för att analysera {namn_visning}..."):
-                    prompt = f"Gör en snabb, skarp och professionell framtidsanalys av {namn_visning} ({ticker}) baserat på dess status som ledande inom teknik/energi/rymden. Vad säger de senaste ingenjörs- och VD-trenderna?"
+                    prompt = f"Gör en kort, skarp och professionell framtidsanalys av {namn_visning} ({ticker}) på svenska baserat på dess marknadsposition. Vad är de viktigaste trenderna just nu?"
                     
                     try:
                         if valda_ai == "Gemini":
-                            genai.configure(api_key=api_key)
-                            model = genai.GenerativeModel('gemini-pro')
-                            response = model.generate_content(prompt)
-                            st.success(response.text)
+                            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+                            headers = {'Content-Type': 'application/json'}
+                            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+                            res = requests.post(url, headers=headers, json=payload)
+                            st.success(res.json()['candidates'][0]['content']['parts'][0]['text'])
                             
                         elif valda_ai == "Claude":
-                            client = anthropic.Anthropic(api_key=api_key)
-                            message = client.messages.create(
-                                model="claude-3-5-sonnet-20241022",
-                                max_tokens=1000,
-                                messages=[{"role": "user", "content": prompt}]
-                            )
-                            st.success(message.content[0].text)
+                            url = "https://api.anthropic.com/v1/messages"
+                            headers = {
+                                "x-api-key": api_key,
+                                "anthropic-version": "2023-06-01",
+                                "content-type": "application/json"
+                            }
+                            payload = {
+                                "model": "claude-3-5-sonnet-20241022",
+                                "max_tokens": 1000,
+                                "messages": [{"role": "user", "content": prompt}]
+                            }
+                            res = requests.post(url, headers=headers, json=payload)
+                            st.success(res.json()['content'][0]['text'])
                             
                         elif valda_ai == "Grok":
-                            client = openai.OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
-                            completion = client.chat.completions.create(
-                                model="grok-beta",
-                                messages=[{"role": "user", "content": prompt}]
-                            )
-                            st.success(completion.choices[0].message.content)
+                            url = "https://api.x.ai/v1/chat/completions"
+                            headers = {
+                                "Authorization": f"Bearer {api_key}",
+                                "Content-Type": "application/json"
+                            }
+                            payload = {
+                                "model": "grok-beta",
+                                "messages": [{"role": "user", "content": prompt}]
+                            }
+                            res = requests.post(url, headers=headers, json=payload)
+                            st.success(res.json()['choices'][0]['message']['content'])
+                            
                     except Exception as e:
-                        st.error(f"Kopplingen misslyckades. Kontrollera att din nyckel är aktiv och giltig!")
+                        st.error("Kopplingen misslyckades. Kontrollera att din API-nyckel är helt korrekt kopierad utan mellanslag!")
                         
     st.markdown("---")
