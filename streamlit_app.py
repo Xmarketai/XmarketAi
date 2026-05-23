@@ -3,23 +3,30 @@ import yfinance as yf
 
 # --- APP-KONFIGURATION ---
 st.set_page_config(page_title="XmarketAi Master Dashboard", page_icon="📈", layout="wide")
-st.title("📈 XmarketAi: Master Dashboard")
+st.title("📈 XmarketAi: Ultimate Master Dashboard")
 st.markdown("### AI, Space, Energy, Semiconductor, Data Center & Crypto")
 
 # --- SIDOMENY FÖR INSTÄLLNINGAR ---
 st.sidebar.header("🤖 AI Inställningar")
-GEMINI_KEY = st.sidebar.text_input("Gemini API-nyckel", type="password")
-CLAUDE_KEY = st.sidebar.text_input("Claude API-nyckel", type="password")
-GROK_KEY = st.sidebar.text_input("Grok API-nyckel", type="password")
+valda_ai = st.sidebar.selectbox("Välj aktiv AI-analytiker:", ["Gemini", "Claude", "Grok"])
+api_key = st.sidebar.text_input(f"{valda_ai} API-nyckel", type="password", help=f"Klistra in din {valda_ai}-nyckel för att aktivera live-analys.")
 
 st.sidebar.markdown("---")
 
-# Tidsväljare för graferna
+# Tidsväljare för graferna med 15 och 20 år tillagda!
 st.sidebar.header("📅 Grafinställningar")
 tidsperiod = st.sidebar.selectbox(
     "Välj historik för grafen:",
-    options=["1y", "5y", "10y", "max"],
-    format_func=lambda x: "1 år" if x=="1y" else "5 år" if x=="5y" else "10 år" if x=="10y" else "Max historik"
+    options=["1y", "2y", "3y", "5y", "10y", "15y", "20y", "max"],
+    format_func=lambda x: (
+        "1 år" if x=="1y" else 
+        "2 år" if x=="2y" else 
+        "3 år" if x=="3y" else 
+        "5 år" if x=="5y" else 
+        "10 år" if x=="10y" else 
+        "15 år" if x=="15y" else 
+        "20 år" if x=="20y" else "Max historik"
+    )
 )
 
 st.sidebar.markdown("---")
@@ -30,7 +37,7 @@ tillgangliga_tillgangar = {
     "Bitcoin (BTC)": "BTC-USD",
     "Ethereum (ETH)": "ETH-USD",
     "Solana (SOL)": "SOL-USD",
-    # AI & AGI (Mjukvara / Moln)
+    # AI & AGI
     "Microsoft (MSFT)": "MSFT",
     "Alphabet / Google (GOOGL)": "GOOGL",
     "Meta Platforms (META)": "META",
@@ -69,24 +76,50 @@ for ticker in mina_val:
     namn_visning = ticker.replace("-USD", "")
     st.markdown(f"## {namn_visning}")
     
-    try:
-        t = yf.Ticker(ticker)
-        # Här används den valda tidsperioden (1y, 5y, 10y, max)
-        historik = t.history(period=tidsperiod)
-        
-        info = t.info
-        pris = info.get("currentPrice", info.get("regularMarketPrice", "N/A"))
-        valuta = "USD" if "-USD" in ticker else info.get("currency", "USD")
-        
-        if (pris == "N/A" or pris is None) and not historik.empty:
-            pris = round(historik['Close'].iloc[-1], 2)
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        try:
+            t = yf.Ticker(ticker)
+            historik = t.history(period=tidsperiod)
             
-        st.metric("Senaste Pris", f"{pris} {valuta}")
-        
-        if not historik.empty:
-            st.write(f"Prisutveckling ({tidsperiod}):")
-            st.line_chart(historik['Close'])
+            info = t.info
+            pris = info.get("currentPrice", info.get("regularMarketPrice", "N/A"))
+            valuta = "USD" if "-USD" in ticker else info.get("currency", "USD")
             
-    except Exception as e:
-        st.error(f"Kunde inte hämta data för {ticker}")
+            if (pris == "N/A" or pris is None) and not historik.empty:
+                pris = round(historik['Close'].iloc[-1], 2)
+                
+            st.metric("Senaste Pris", f"{pris} {valuta}")
+            
+            if not historik.empty:
+                st.write(f"Prisutveckling ({tidsperiod}):")
+                st.line_chart(historik['Close'])
+                
+        except Exception as e:
+            st.error(f"Kunde inte hämta data för {ticker}")
+            
+    with col2:
+        st.subheader("📰 Senaste Nyheter & AI")
+        
+        try:
+            nyheter = t.news[:3]
+            if nyheter:
+                for nyhet in nyheter:
+                    st.markdown(f"**[{nyhet['title']}]({nyhet['link']})**")
+                    st.caption(f"Källa: {nyhet['publisher']}")
+            else:
+                st.write("Inga färska nyheter hittades just nu.")
+        except:
+            st.write("Kunde inte ladda nyhetsflödet.")
+            
+        st.markdown("---")
+        st.write(f"🤖 **{valda_ai}-Analyslaboratorium**")
+        
+        if st.button(f"Kör {valda_ai}-analys för {namn_visning}", key=f"btn_{ticker}"):
+            if not api_key:
+                st.warning(f"Klistra in din {valda_ai} API-nyckel i sidomenyn till vänster för att köra live-analys!")
+            else:
+                st.info(f"Ansluter till {valda_ai} för att analysera marknadsdata, nyheter och historiska trender...")
+                
     st.markdown("---")
