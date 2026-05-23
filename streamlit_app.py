@@ -1,97 +1,91 @@
 import streamlit as st
 import requests
-import json
-from datetime import datetime, timedelta
+import pandas as pd
 
 # --- APP-KONFIGURATION ---
 st.set_page_config(page_title="XmarketAi Master Dashboard", page_icon="📈", layout="wide")
 st.title("📈 XmarketAi: Ultimate Master Dashboard")
 st.markdown("### AI, Space, Energy, Semiconductor, Data Center & Crypto")
 
-# --- SIDOMENY FÖR INSTÄLLNINGAR ---
+# --- HÄR SPARAR VI DIN NYCKEL PERMANENT ---
+# Radera texten 'DIN_GEMINI_NYCKEL_HÄR' och klistra in din riktiga nyckel (den som slutar på ...eM50) mellan fnuttarna.
+SPARAD_GEMINI_KEY = 'DIN_GEMINI_NYCKEL_HÄR'
+
+# --- SIDOMENY ---
 st.sidebar.header("🤖 AI Inställningar")
 valda_ai = st.sidebar.selectbox("Välj aktiv AI-analytiker:", ["Gemini", "Claude", "Grok"])
-api_key = st.sidebar.text_input(f"{valda_ai} API-nyckel", type="password")
+
+# Om du har sparat nyckeln ovan används den automatiskt för Gemini, annars visas textrutan
+if valda_ai == "Gemini" and SPARAD_GEMINI_KEY != 'DIN_GEMINI_NYCKEL_HÄR':
+    api_key = SPARAD_GEMINI_KEY
+    st.sidebar.success("✅ Gemini API-nyckel laddad automatiskt!")
+else:
+    api_key = st.sidebar.text_input(f"{valda_ai} API-nyckel", type="password", help=f"Klistra in din {valda_ai}-nyckel.")
 
 st.sidebar.markdown("---")
 
-st.sidebar.header("📅 Grafinställningar")
-tidsperiod = st.sidebar.selectbox(
-    "Välj historik för grafen:",
-    options=["1y", "2y", "3y", "5y", "10y", "15y", "20y", "max"],
-    format_func=lambda x: f"{x.replace('max', 'Max historik').replace('y', ' år')}"
-)
-
-st.sidebar.markdown("---")
-
-# --- REGISTER ÖVER ALLA TILLGÅNGAR ---
+# --- REGISTER ÖVER KRYPTO ---
 tillgangliga_tillgangar = {
-    "Bitcoin (BTC)": "BTC",
-    "Ethereum (ETH)": "ETH",
-    "Solana (SOL)": "SOL",
-    "NVIDIA (NVDA)": "NVDA",
-    "Tesla (TSLA)": "TSLA",
-    "Rocket Lab (RKLB)": "RKLB",
-    "Vistra Corp (VST)": "VST"
+    "Bitcoin (BTC)": "bitcoin",
+    "Ethereum (ETH)": "ethereum",
+    "Solana (SOL)": "solana"
 }
 
 st.sidebar.header("🔍 Välj Tillgångar")
 valda_namn = st.sidebar.multiselect(
     "Välj vad du vill övervaka:",
     options=list(tillgangliga_tillgangar.keys()),
-    default=["Bitcoin (BTC)", "NVIDIA (NVDA)", "Tesla (TSLA)"]
+    default=["Bitcoin (BTC)", "Ethereum (ETH)"]
 )
 
-# --- FUNKTION FÖR ATT GENERERA STABIL MARKNADSDATA ---
-def hamta_marknadsdata(ticker_namn, period_val):
-    # Genererar en stabil realtidsgraf baserad på faktiska dagsintervall för att runda Yahoos servrar
-    import random
-    points = 100
-    if period_val == "1y": points = 365
-    elif period_val == "5y": points = 500
-    elif period_val == "10y": points = 800
-    
-    base_price = 65000 if ticker_namn == "BTC" else 3200 if ticker_namn == "ETH" else 140 if ticker_namn == "SOL" else 135 if ticker_namn == "RKLB" else 215
-    
-    current_price = base_price
-    prices = []
-    start_date = datetime.now() - timedelta(days=points)
-    dates = []
-    
-    random.seed(ticker_namn) # Gör grafen stabil per tillgång
-    for i in range(points):
-        current_price += current_price * random.uniform(-0.04, 0.045)
-        prices.append(round(current_price, 2))
-        dates.append(start_date + timedelta(days=i))
+# --- FUNKTION FÖR ATT HÄMTA ÄKTA LIVE-DATA ---
+def hamta_live_data(crypto_id):
+    try:
+        # Hämtar 365 dagar av äkta historik från CoinGecko API
+        url = f"https://api.coingecko.com/api/v3/coins/{crypto_id}/market_chart?vs_currency=usd&days=365"
+        res = requests.get(url).json()
         
-    return prices[-1], prices
+        priser = res['prices']
+        df = pd.DataFrame(priser, columns=['Timestamp', 'Pris (USD)'])
+        
+        # Gör om tidsstämplar till riktiga datum
+        df['Datum'] = pd.to_datetime(df['Timestamp'], unit='ms')
+        df.set_index('Datum', inplace=True)
+        
+        senaste_pris = round(df['Pris (USD)'].iloc[-1], 2)
+        return senaste_pris, df['Pris (USD)']
+    except Exception as e:
+        return "N/A", None
 
 # --- PROCESSA VARJE TILLGÅNG ---
 for namn in valda_namn:
-    ticker = tillgangliga_tillgangar[namn]
+    crypto_id = tillgangliga_tillgangar[namn]
     st.markdown(f"## {namn}")
     
     col1, col2 = st.columns([2, 1])
-    senaste_pris, historik_lista = hamta_marknadsdata(ticker, tidsperiod)
+    pris, historik_data = hamta_live_data(crypto_id)
     
     with col1:
-        st.metric("Senaste Pris (USD)", f"{senaste_pris} USD")
-        st.line_chart(historik_lista)
+        if historik_data is not None:
+            st.metric("Senaste Pris (USD)", f"{pris:,} USD".replace(",", " "))
+            st.line_chart(historik_data)
+        else:
+            st.error("Kunde inte ansluta till live-databasen just nu. Försök igen om en kort stund.")
             
     with col2:
-        st.subheader("📰 Senaste Nyheter & AI Insights")
-        st.write("Anslutning: 🔥 Aktiv & Säkrad")
-        st.caption("Nyheter och VD-tweets analyseras direkt i AI-motorn nedan.")
+        st.subheader("📰 Senaste AI Insights")
+        st.write("Anslutning: 🔥 Aktiv & Realtid")
+        st.caption("Analysera marknadstrender i realtid med AI.")
             
         st.markdown("---")
         st.write(f"🤖 **{valda_ai}-Analyslaboratorium**")
         
-        if st.button(f"Kör {valda_ai}-analys för {ticker}", key=f"btn_{ticker}"):
-            if not api_key:
-                st.warning(f"Klistra in din {valda_ai} API-nyckel i sidomenyn till vänster!")
+        if st.button(f"Kör {valda_ai}-analys för {namn}", key=f"btn_{crypto_id}"):
+            if not api_key or api_key == 'DIN_GEMINI_NYCKEL_HÄR':
+                st.warning(f"Ange en giltig API-nyckel för {valda_ai}!")
             else:
                 with st.spinner(f"Ansluter till {valda_ai}..."):
-                    prompt = f"Gör en kort, skarp och professionell framtidsanalys av {namn} ({ticker}) på svenska baserat på dess marknadsposition. Vad är de viktigaste ingenjörstrenderna och nyheterna just nu?"
+                    prompt = f"Gör en kort, skarp och professionell framtidsanalys av {namn} på svenska baserat på nuvarande marknadstrender. Vad är det viktigaste att hålla koll på?"
                     
                     try:
                         if valda_ai == "Gemini":
@@ -116,6 +110,6 @@ for namn in valda_namn:
                             st.success(res.json()['choices'][0]['message']['content'])
                             
                     except Exception as e:
-                        st.error("Kopplingen misslyckades. Dubbelkolla att din API-nyckel är kopierad exakt utan några extra tecken!")
+                        st.error("Kopplingen misslyckades. Dubbelkolla att din API-nyckel är rätt kopierad.")
                         
     st.markdown("---")
