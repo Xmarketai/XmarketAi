@@ -2,14 +2,22 @@ import streamlit as st
 import yfinance as yf
 
 # --- APP-KONFIGURATION ---
-st.set_page_config(page_title="XmarketAi Dashboard", page_icon="🚀")
-st.title("🚀 XmarketAi: Dashboard")
+st.set_page_config(page_title="XmarketAi Dashboard", page_icon="📈", layout="wide")
+st.title("📈 XmarketAi: Dashboard för AI, Space & Energi")
+
+# --- SIDOMENY FÖR INSTÄLLNINGAR ---
+st.sidebar.header("🤖 AI Inställningar")
+GEMINI_KEY = st.sidebar.text_input("Gemini API-nyckel", type="password")
+CLAUDE_KEY = st.sidebar.text_input("Claude API-nyckel", type="password")
+GROK_KEY = st.sidebar.text_input("Grok API-nyckel", type="password")
+
+st.sidebar.markdown("---")
 
 st.sidebar.header("🔍 Välj Bolag")
 valda_namn = st.sidebar.multiselect(
-    "Välj bolag:",
+    "Välj bolag att övervaka:",
     options=["Rocket Lab (RKLB)", "Vistra Corp (VST)", "Tesla (TSLA)", "NVIDIA (NVDA)"],
-    default=["Rocket Lab (RKLB)", "Tesla (TSLA)"]
+    default=["Rocket Lab (RKLB)", "Tesla (TSLA)", "Vistra Corp (VST)", "NVIDIA (NVDA)"]
 )
 
 tillgangliga_aktier = {
@@ -37,6 +45,7 @@ for ticker in mine_aktier:
         if not historik.empty:
             st.write("Prisutveckling senaste året:")
             st.line_chart(historik['Close'])
+            
     except Exception as e:
         st.error(f"Kunde inte hämta data för {ticker}")
     st.markdown("---")
